@@ -1,0 +1,10 @@
+{
+  "url": "https://script.google.com/macros/s/AKfycbwyMBZ5sYK5nIw28LrwzbqscgUOnsT_eZS4vQXXQJFanShz4KeXHUirZsUH0eSZoD_y3g/exec",
+  "apiKey": "agherakushslkjshdwnbsxgu",
+  "adminPassword": "Kush",
+  "syncPassword": "final",
+  "usePlainText": true,
+  "autoPull": true,
+  "timeoutMs": 12000,
+  "adminEnabled": true
+}
