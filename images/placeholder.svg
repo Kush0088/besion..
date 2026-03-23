@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-label="Besion placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#eef6f1"/>
+      <stop offset="1" stop-color="#dbeee3"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#bg)"/>
+  <rect x="80" y="80" width="440" height="440" rx="48" fill="#ffffff" stroke="#cfe6d9" stroke-width="6"/>
+  <g fill="#1a6b3c">
+    <path d="M300 170c-70 32-104 96-93 158 12 68 66 112 93 112 27 0 81-44 93-112 11-62-23-126-93-158z" fill="#4db87a"/>
+    <circle cx="300" cy="300" r="94" fill="none" stroke="#1a6b3c" stroke-width="8" opacity="0.35"/>
+  </g>
+  <text x="300" y="455" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" fill="#1a6b3c" font-weight="700">Besion Chemical</text>
+  <text x="300" y="492" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#4c7a60">Image unavailable</text>
+</svg>
