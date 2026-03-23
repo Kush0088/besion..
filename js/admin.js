@@ -71,11 +71,24 @@
       };
     }
 
-    const ADMIN_CONFIG = typeof window.BESION_SYNC_CONFIG === 'object'
+    let ADMIN_CONFIG = typeof window.BESION_SYNC_CONFIG === 'object'
       ? window.BESION_SYNC_CONFIG
       : {};
-    const ADMIN_ENABLED = Boolean(ADMIN_CONFIG.adminEnabled);
-    const ADMIN_PASSWORD = String(ADMIN_CONFIG.adminPassword || '').trim();
+    let ADMIN_ENABLED = Boolean(ADMIN_CONFIG.adminEnabled);
+    let ADMIN_PASSWORD = String(ADMIN_CONFIG.adminPassword || '').trim();
+
+    // Re-check config when it's loaded asynchronously
+    document.addEventListener('besion:config-ready', (e) => {
+        ADMIN_CONFIG = window.BESION_SYNC_CONFIG;
+        ADMIN_ENABLED = Boolean(ADMIN_CONFIG.adminEnabled);
+        ADMIN_PASSWORD = String(ADMIN_CONFIG.adminPassword || '').trim();
+        // If we were already at the lock screen, refresh the UI if needed
+        const lockMsg = document.querySelector('.admin-lock-msg');
+        if (lockMsg && lockMsg.textContent.includes('Incorrect password')) {
+             // Optional: clear error if it was just a race condition
+        }
+    });
+
     const ADMIN_UNLOCK_KEY = 'besion_admin_unlock_v1';
     const ADMIN_ATTEMPTS_KEY = 'besion_admin_attempts_v1';
     const ADMIN_LOCK_UNTIL_KEY = 'besion_admin_lock_until_v1';

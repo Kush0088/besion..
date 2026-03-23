@@ -1372,7 +1372,20 @@ function setupGlobalImageFallback() {
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Wait for remote config if it's still being fetched
+  if (typeof window !== 'undefined' && window.BESION_SYNC_CONFIG && window.BESION_SYNC_CONFIG.url.includes('_PLACEHOLDER')) {
+    await new Promise(resolve => {
+      const handler = () => {
+        document.removeEventListener('besion:config-ready', handler);
+        resolve();
+      };
+      document.addEventListener('besion:config-ready', handler);
+      // Safety timeout
+      setTimeout(handler, 3000);
+    });
+  }
+
   if (typeof window !== 'undefined' && isSyncEnabled() && getSyncConfig().autoPull) {
     besionSyncPull().catch(() => {});
   }
