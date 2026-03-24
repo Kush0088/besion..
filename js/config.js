@@ -7,7 +7,8 @@
 window.BESION_SYNC_CONFIG = {
   url: '',
   syncPassword: 'final',
-  adminEnabled: true
+  adminEnabled: true,
+  autoPull: true
 };
 
 // Asynchronously fetch real URL from config.local.json
@@ -20,7 +21,8 @@ window.BESION_SYNC_CONFIG = {
         ...window.BESION_SYNC_CONFIG,
         url: localConfig.url || window.BESION_SYNC_CONFIG.url,
         syncPassword: localConfig.syncPassword || 'final',
-        adminEnabled: localConfig.adminEnabled !== false
+        adminEnabled: localConfig.adminEnabled !== false,
+        autoPull: localConfig.autoPull !== false
       };
       document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: window.BESION_SYNC_CONFIG }));
       console.log('Configuration loaded successfully.');
