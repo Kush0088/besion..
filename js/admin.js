@@ -81,11 +81,10 @@
     document.addEventListener('besion:config-ready', (e) => {
         ADMIN_CONFIG = window.BESION_SYNC_CONFIG;
         ADMIN_ENABLED = Boolean(ADMIN_CONFIG.adminEnabled);
-        ADMIN_PASSWORD = String(ADMIN_CONFIG.adminPassword || '').trim();
-        // If we were already at the lock screen, refresh the UI if needed
-        const lockMsg = document.querySelector('.admin-lock-msg');
-        if (lockMsg && lockMsg.textContent.includes('Incorrect password')) {
-             // Optional: clear error if it was just a race condition
+        
+        // Refresh lock state dynamically based on new configs if they loaded late
+        if (isAdminUnlocked()) {
+            setAdminUnlocked(true);
         }
     });
 
@@ -178,13 +177,14 @@
 
     function isAdminUnlocked() {
       try {
-        return localStorage.getItem(ADMIN_UNLOCK_KEY) === 'true' && !!sessionStorage.getItem('admin_session');
+        return localStorage.getItem(ADMIN_UNLOCK_KEY) === 'true' && !!sessionStorage.getItem('admin_pwd');
       } catch (err) {
         return false;
       }
     }
 
     function lockAdmin() {
+        sessionStorage.removeItem('admin_pwd');
         sessionStorage.removeItem('admin_session');
         setAdminUnlocked(false);
         window.location.reload();
@@ -990,9 +990,11 @@
         refreshCategories({ renderTables: false });
         
         // --- Sidebar/Nav ---
-        document.querySelector('.admin-menu-btn')?.addEventListener('click', () => {
-             document.getElementById('adminSidebar')?.classList.add('open');
-             document.getElementById('adminSidebarOverlay')?.classList.add('open');
+        document.querySelectorAll('.admin-menu-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                 document.getElementById('adminSidebar')?.classList.add('open');
+                 document.getElementById('adminSidebarOverlay')?.classList.add('open');
+            });
         });
         
         document.getElementById('adminSidebarOverlay')?.addEventListener('click', () => {
@@ -1007,9 +1009,10 @@
         });
 
         // --- Auth Form ---
-        document.getElementById('adminLockForm')?.addEventListener('submit', (e) => {
+        document.getElementById('adminLockForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const passInput = document.getElementById('adminPassword');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
             const entered = passInput?.value?.trim();
             const now = Date.now();
             
@@ -1019,21 +1022,46 @@
                 return;
             }
 
-            if (entered === ADMIN_PASSWORD) {
-                sessionStorage.setItem('admin_session', 'besion_' + Math.random().toString(36).substring(2));
-                setAdminUnlocked(true);
-            } else {
-                const attempts = getAdminAttempts(now);
-                attempts.push(now);
-                setAdminAttempts(attempts);
-                if (attempts.length >= MAX_ADMIN_ATTEMPTS) {
-                    setAdminLockUntil(now + ADMIN_ATTEMPT_WINDOW_MS);
-                    showAdminLockError(`Too many attempts. Try again in 1 hour.`);
+            if (!entered) return;
+            
+            // Disable button while authenticating
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Verifying...';
+            }
+            hideAdminLockError();
+
+            try {
+                const res = await window.besionSyncAuth(entered);
+                if (res.ok) {
+                    // Password is correct, store it in session storage so push operations can use it
+                    sessionStorage.setItem('admin_pwd', entered);
+                    sessionStorage.setItem('admin_session', 'besion_' + Math.random().toString(36).substring(2));
+                    setAdminUnlocked(true);
                 } else {
-                    showAdminLockError(`Incorrect password. ${MAX_ADMIN_ATTEMPTS - attempts.length} attempts left.`);
+                    handleFailedAttempt(now, res.error || 'Incorrect password.');
+                }
+            } catch (err) {
+                handleFailedAttempt(now, 'Network error. Please try again.');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Unlock Portal';
                 }
             }
         });
+
+        function handleFailedAttempt(now, errMsg) {
+            const attempts = getAdminAttempts(now);
+            attempts.push(now);
+            setAdminAttempts(attempts);
+            if (attempts.length >= MAX_ADMIN_ATTEMPTS) {
+                setAdminLockUntil(now + ADMIN_ATTEMPT_WINDOW_MS);
+                showAdminLockError(`Too many attempts. Try again in 1 hour.`);
+            } else {
+                showAdminLockError(`${errMsg} ${MAX_ADMIN_ATTEMPTS - attempts.length} attempts left.`);
+            }
+        }
 
         document.getElementById('adminLockToggle')?.addEventListener('click', () => {
             const input = document.getElementById('adminPassword');
@@ -1069,8 +1097,12 @@
                             categories: { domestic: DOMESTIC_CATEGORY_OPTIONS, global: GLOBAL_CATEGORY_OPTIONS }
                         }).then(res => {
                             if (res.ok) window.showToast('Synced successfully!', 'success');
-                            else window.showToast('Sync failed.', 'error');
+                            else window.showToast('Sync failed: ' + (res.error || 'Unknown error'), 'error');
+                        }).catch(err => {
+                            window.showToast('Network error during sync.', 'error');
                         });
+                    } else if (pass !== null) {
+                        window.showToast('Incorrect sync password.', 'error');
                     }
                });
            }

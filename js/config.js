@@ -1,36 +1,35 @@
 /**
  * Besion Chemical — Configuration Manager
- * Fetches secrets from Vercel environment variables via /api/config
+ * Loads public config (Google Apps Script URL) without relying on Vercel.
  */
 
-// Initial default configuration (placeholders/fallback)
+// Initial default configuration
 window.BESION_SYNC_CONFIG = {
-  url: 'BESION_SYNC_URL_PLACEHOLDER',
-  apiKey: 'BESION_API_KEY_PLACEHOLDER',
-  adminPassword: 'BESION_ADMIN_PASSWORD_PLACEHOLDER',
-  syncPassword: 'BESION_SYNC_PASSWORD_PLACEHOLDER',
-  usePlainText: true,
-  autoPull: true,
-  timeoutMs: 12000,
+  url: '',
+  syncPassword: 'final',
   adminEnabled: true
 };
 
-// Asynchronously fetch real secrets from Vercel API
+// Asynchronously fetch real URL from config.local.json
 (async function initConfig() {
   try {
-    const response = await fetch('/api/config');
+    const response = await fetch('/js/config.local.json');
     if (response.ok) {
-      const remoteConfig = await response.json();
-      // Merge remote config into the global object
+      const localConfig = await response.json();
       window.BESION_SYNC_CONFIG = {
         ...window.BESION_SYNC_CONFIG,
-        ...remoteConfig
+        url: localConfig.url || window.BESION_SYNC_CONFIG.url,
+        syncPassword: localConfig.syncPassword || 'final',
+        adminEnabled: localConfig.adminEnabled !== false
       };
-      // Dispatch event so other scripts know config is ready
-      document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: remoteConfig }));
-      console.log('Remote configuration loaded successfully.');
+      document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: window.BESION_SYNC_CONFIG }));
+      console.log('Configuration loaded successfully.');
+    } else {
+      throw new Error(`Failed to load config.local.json: ${response.status}`);
     }
   } catch (err) {
-    console.warn('Could not load remote config, using defaults.', err);
+    console.warn('Could not load configuration, using defaults.', err);
+    // Dispatch even on failure so UI isn't blocked forever
+    document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: window.BESION_SYNC_CONFIG }));
   }
 })();

@@ -6,8 +6,8 @@
 const BESION_SYNC = {
   // Optional: set Spreadsheet ID; leave blank to use the bound sheet
   SHEET_ID: '',
-  // Optional: shared secret required for pull/sync
-  API_KEY: 'agherakushslkjshdwnbsxgu', // MUST match js/config.js BESION_API_KEY
+  // Password required for push/sync/login (acts as the only auth token)
+  ADMIN_PASSWORD: 'Kush', // MUST be set to the desired admin password
 
   SHEETS: {
     products: {
@@ -64,29 +64,41 @@ function handleRequest_(e) {
     ? safeJson_(e.postData.contents)
     : {};
   const action = String(body.action || params.action || 'pull').toLowerCase();
-  const key = String(body.key || params.key || '').trim();
+  const password = String(body.password || params.password || '').trim();
 
-  // Enforce API key check if configured
-  if (BESION_SYNC.API_KEY && key !== BESION_SYNC.API_KEY) {
-    console.warn('Unauthorized access attempt', { action, key });
-    return json_({ ok: false, error: 'Unauthorized: Invalid API Key.' });
+  // If password is required but NOT configured on the server
+  if (!BESION_SYNC.ADMIN_PASSWORD) {
+    return json_({ ok: false, error: 'Server misconfiguration: ADMIN_PASSWORD not set in Code.gs.' });
   }
 
-  // If API_KEY is required but NOT provided
-  if (!BESION_SYNC.API_KEY) {
-    return json_({ ok: false, error: 'Server misconfiguration: API_KEY not set in Code.gs.' });
+  // Public Actions
+  if (action === 'pull') {
+    try {
+      const data = readAll_();
+      return json_({ ok: true, data: data });
+    } catch (err) {
+      return json_({ ok: false, error: String(err && err.message ? err.message : err) });
+    }
+  }
+
+  // Protected Actions - Require exact password match
+  if (password !== BESION_SYNC.ADMIN_PASSWORD) {
+    // Return standard generic error to avoid leaking whether password was close
+    return json_({ ok: false, error: 'Unauthorized: Incorrect password.' });
   }
 
   try {
-    if (action === 'pull') {
-      const data = readAll_();
-      return json_({ ok: true, data: data });
+    if (action === 'login') {
+      // Just returning ok signifies the password was correct
+      return json_({ ok: true });
     }
+    
     if (action === 'sync' || action === 'push') {
       writeAll_(body.data || {});
       const data = readAll_();
       return json_({ ok: true, data: data });
     }
+    
     return json_({ ok: false, error: 'Unknown action.' });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message ? err.message : err) });

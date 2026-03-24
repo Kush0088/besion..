@@ -188,8 +188,7 @@ async function besionSyncPull() {
   if (!isSyncEnabled()) return { ok: false, error: 'Sync is not configured.' };
   const cfg = getSyncConfig();
   const payload = {
-    action: 'pull',
-    key: cfg.apiKey || ''
+    action: 'pull'
   };
   const body = JSON.stringify(payload);
   const contentType = cfg.usePlainText ? 'text/plain;charset=utf-8' : 'application/json';
@@ -213,12 +212,26 @@ async function besionSyncPull() {
   return res;
 }
 
-async function besionSyncPush(payload) {
+async function besionSyncAuth(password) {
   if (!isSyncEnabled()) return { ok: false, error: 'Sync is not configured.' };
   const cfg = getSyncConfig();
+  const body = JSON.stringify({ action: 'login', password: password || '' });
+  const contentType = cfg.usePlainText ? 'text/plain;charset=utf-8' : 'application/json';
+  
+  return await syncFetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': contentType },
+    body
+  }, cfg.timeoutMs);
+}
+
+async function besionSyncPush(payload, password) {
+  if (!isSyncEnabled()) return { ok: false, error: 'Sync is not configured.' };
+  const cfg = getSyncConfig();
+  const pwd = password || sessionStorage.getItem('admin_pwd') || '';
   const body = JSON.stringify({
     action: 'sync',
-    key: cfg.apiKey || '',
+    password: pwd,
     data: payload || {}
   });
   const contentType = cfg.usePlainText ? 'text/plain;charset=utf-8' : 'application/json';
@@ -243,6 +256,7 @@ if (typeof window !== 'undefined') {
   window.besionSyncPull = besionSyncPull;
   window.besionSyncPush = besionSyncPush;
   window.besionSyncAll = besionSyncAll;
+  window.besionSyncAuth = besionSyncAuth;
   window.besionSyncEnabled = isSyncEnabled;
 }
 
@@ -1415,4 +1429,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderDrawerMenu();
     applyHomeImages();
   });
+});
+
+// Force refresh on back/forward navigation to ensure data is always fresh
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    window.location.reload();
+  }
 });

@@ -1,10 +1,5 @@
 {
-  "url": "https://script.google.com/macros/s/AKfycbwyMBZ5sYK5nIw28LrwzbqscgUOnsT_eZS4vQXXQJFanShz4KeXHUirZsUH0eSZoD_y3g/exec",
-  "apiKey": "agherakushslkjshdwnbsxgu",
-  "adminPassword": "Kush",
+  "url": "https://script.google.com/macros/s/AKfycbxUsG9Ytx1MnGbNtT-YaWx8bee6IvRV8rRyjBSYlIapWksQq3PwoG8Lwbrg-a1Y-DIEdg/exec",
   "syncPassword": "final",
-  "usePlainText": true,
-  "autoPull": true,
-  "timeoutMs": 12000,
   "adminEnabled": true
 }
