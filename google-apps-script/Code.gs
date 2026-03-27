@@ -81,11 +81,16 @@ function handleRequest_(e) {
         : null; // null = return all sheets
 
       const data = readScoped_(requestedSheets);
-      const version = hashData_(data);
+      const version = getVersionToken_();
       return jsonWithVersion_({ ok: true, data: data }, version);
     } catch (err) {
       return json_({ ok: false, error: String(err && err.message ? err.message : err) });
     }
+  }
+
+  // Lightweight version check for manual refresh
+  if (action === 'check') {
+    return json_({ ok: true, version: getVersionToken_() });
   }
 
   // Protected Actions - Require exact password match
@@ -103,7 +108,8 @@ function handleRequest_(e) {
     if (action === 'sync' || action === 'push') {
       writeAll_(body.data || {});
       const data = readAll_();
-      return json_({ ok: true, data: data });
+      const version = getVersionToken_();
+      return jsonWithVersion_({ ok: true, data: data }, version);
     }
     
     return json_({ ok: false, error: 'Unknown action.' });
@@ -365,9 +371,53 @@ function writeAll_(data) {
     if (data.categories && typeof data.categories === 'object') {
       writeCategories_(data.categories);
     }
+    // Update version token on every write
+    updateVersionToken_();
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Gets the current version token from script properties.
+ * If not set, it generates one based on current time.
+ */
+function getVersionToken_() {
+  const props = PropertiesService.getScriptProperties();
+  let token = props.getProperty('LAST_UPDATE_TS');
+  if (!token) {
+    token = String(Date.now());
+    props.setProperty('LAST_UPDATE_TS', token);
+  }
+  return token;
+}
+
+/**
+ * Updates the version token in script properties.
+ */
+function updateVersionToken_() {
+  PropertiesService.getScriptProperties().setProperty('LAST_UPDATE_TS', String(Date.now()));
+}
+
+/**
+ * Reads only the requested sheets to optimize payload size.
+ */
+function readScoped_(sheets) {
+  const all = readAll_();
+  if (!sheets || !Array.isArray(sheets)) return all;
+  
+  const result = {};
+  sheets.forEach(s => {
+    const key = String(s).toLowerCase();
+    if (all[key] !== undefined) {
+      result[key] = all[key];
+    }
+  });
+  // Always include settings if they exist, as they are often needed for layout
+  if (!result.settings && all.settings) {
+    result.settings = all.settings;
+  }
+  return result;
 }
 
 function writeProducts_(items) {
@@ -377,7 +427,12 @@ function writeProducts_(items) {
     return { ...item, order: order !== '' ? order : (idx + 1) };
   });
   const rows = normalized
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .sort((a, b) => {
+      if (a.category !== b.category) {
+        return String(a.category || '').localeCompare(String(b.category || ''));
+      }
+      return (a.order ?? 0) - (b.order ?? 0);
+    })
     .map(item => ({
       order: toNumber_(item.order),
       id: toString_(item.id),

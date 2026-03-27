@@ -54,9 +54,12 @@ if (typeof window !== 'undefined') {
   window.BESION_PULL_TS_KEY = PULL_TS_KEY;
 }
 
-// Minimum age before a hard-reload is allowed to re-fetch from GAS (5 minutes).
-// This prevents habitual F5 presses from hammering the GAS endpoint.
 const PULL_MIN_AGE_MS = 5 * 60 * 1000; // 5 minutes
+
+const VERSION_KEY = 'besion_last_version';
+if (typeof window !== 'undefined') {
+  window.BESION_VERSION_KEY = VERSION_KEY;
+}
 
 /**
  * Returns true if the current page load should trigger a GAS pull.
@@ -73,20 +76,34 @@ function shouldFetchOnLoad() {
   // Check if cache has been invalidated by admin push
   const ts = storageGet(PULL_TS_KEY);
   if (!ts || ts === '0') return true;
-  // Detect hard reload via Navigation Timing API (supported in all modern browsers)
+  // Detect hard reload via Navigation Timing API
   try {
     const nav = performance.getEntriesByType('navigation')[0];
     if (nav && nav.type === 'reload') {
-      // Only re-fetch if data is older than the minimum age window
       const age = Date.now() - parseInt(ts, 10);
-      return age > PULL_MIN_AGE_MS;
+      // Older than 5 mins? Full pull.
+      if (age > PULL_MIN_AGE_MS) return true;
+      // Fresh but reloaded? Perform lightweight version check.
+      return 'check';
     }
-  } catch (_) { /* ignore in environments without performance API */ }
+  } catch (_) { /* ignore */ }
   return false;
 }
 
 async function initialDataFetch() {
-  if (!shouldFetchOnLoad()) return;
+  const mode = shouldFetchOnLoad();
+  if (!mode) return;
+
+  if (mode === 'check') {
+    const versionRes = await besionSyncCheck().catch(() => ({ ok: false }));
+    const localVersion = storageGet(VERSION_KEY);
+    if (versionRes.ok && versionRes.version === localVersion) {
+      // Version matches, skip pull
+      return;
+    }
+    // Version differs or check failed, proceed to full pull
+  }
+
   const result = await besionSyncPull().catch(() => ({}));
   if (result && result.ok) {
     storageSet(PULL_TS_KEY, String(Date.now()));
@@ -171,6 +188,11 @@ function applySyncData(data) {
   if (!data || typeof data !== 'object') return false;
   let touched = false;
 
+  // Store server-provided version token
+  if (data._v) {
+    storageSet(VERSION_KEY, String(data._v));
+  }
+
   if (Array.isArray(data.products)) {
     if (typeof normalizeProductOrder === 'function') {
       const normalized = normalizeProductOrder(data.products);
@@ -253,13 +275,33 @@ async function besionSyncPull() {
       return { ok: false, error: res.data.error || 'Sync failed.' };
     }
     if (res.data.data) {
-      applySyncData(res.data.data);
-      return { ok: true, data: res.data.data };
+      // Pass the top-level version token down if available
+      const payload = res.data.data;
+      if (res.data._v) payload._v = res.data._v;
+      applySyncData(payload);
+      return { ok: true, data: payload };
     }
   }
   if (res.ok) return { ok: false, error: 'Invalid sync response format.' };
   return res;
-  return res;
+}
+
+async function besionSyncCheck() {
+  if (!isSyncEnabled()) return { ok: false, error: 'Sync is not configured.' };
+  const cfg = getSyncConfig();
+  const payload = { action: 'check' };
+  const body = JSON.stringify(payload);
+  const contentType = cfg.usePlainText ? 'text/plain;charset=utf-8' : 'application/json';
+  const res = await syncFetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': contentType },
+    body
+  }, cfg.timeoutMs);
+
+  if (res.ok && res.data && res.data.ok) {
+    return { ok: true, version: res.data.version };
+  }
+  return { ok: false, error: 'Check failed' };
 }
 
 async function besionSyncAuth(password) {
@@ -291,10 +333,12 @@ async function besionSyncPush(payload, password) {
     body
   }, cfg.timeoutMs);
   if (res.ok && res.data && res.data.data) {
-    applySyncData(res.data.data);
+    const payload = res.data.data;
+    if (res.data._v) payload._v = res.data._v;
+    applySyncData(payload);
     // Invalidate pull cache so next user page reload fetches fresh data
     storageSet(PULL_TS_KEY, '0');
-    return { ok: true, data: res.data.data };
+    return { ok: true, data: payload };
   }
   if (res.ok) return { ok: false, error: 'Invalid sync response.' };
   return res;
@@ -309,6 +353,7 @@ if (typeof window !== 'undefined') {
   window.besionSyncPush = besionSyncPush;
   window.besionSyncAll = besionSyncAll;
   window.besionSyncAuth = besionSyncAuth;
+  window.besionSyncCheck = besionSyncCheck;
   window.besionSyncEnabled = isSyncEnabled;
 }
 

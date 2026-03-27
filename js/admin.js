@@ -532,27 +532,61 @@
         const globalSection = document.getElementById('globalProductsSection');
         if (globalSection) globalSection.style.display = showGlobal ? '' : 'none';
 
+        if (!showDomestic) return;
+
+        const domesticProducts = products.filter(p => (p.market || 'domestic') === 'domestic');
+        const categoriesInMarket = DOMESTIC_CATEGORY_OPTIONS;
+        const usedCategories = [...new Set(domesticProducts.map(p => p.category))];
+        
+        // Include "uncategorized" if it exists in data but not in options
+        const allRelevantCategories = [...categoriesInMarket];
+        usedCategories.forEach(catValue => {
+            if (!allRelevantCategories.some(opt => opt.value === catValue)) {
+                allRelevantCategories.push({ value: catValue, label: getAnyCategoryLabel(catValue) });
+            }
+        });
+
+        const rows = [];
+        allRelevantCategories.forEach(catOpt => {
+            const catProducts = domesticProducts
+              .filter(p => {
+                const name = (p.name || '').toLowerCase();
+                const technical = (p.technical || '').toLowerCase();
+                const matchSearch = !srch || name.includes(srch) || technical.includes(srch);
+                const matchCat = (!catF || p.category === catF) && p.category === catOpt.value;
+                return matchSearch && matchCat;
+              })
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+            if (catProducts.length > 0) {
+              rows.push(`<tr class="category-header-row"><td colspan="7" style="background:#f0f7f2;font-weight:700;padding:10px 15px;color:#1b5e20;border-left:4px solid #1b5e20">Category: ${esc(catOpt.label)}</td></tr>`);
+              catProducts.forEach((p, idx) => {
+                rows.push(`
+                  <tr>
+                    <td data-label="Sr No.">
+                      <input class="inline-order-input js-product-order" type="number" min="1" value="${escAttr(p.order || idx + 1)}" data-id="${escAttr(p.id)}" />
+                    </td>
+                    <td data-label="Image"><img class="product-table-img js-table-img" src="${escAttr(safeUrl(getProductImage(p), FALLBACK_IMAGE))}" alt="${escAttr(p.name || 'Product')}"></td>
+                    <td data-label="Product Name"><strong>${esc(p.name || 'Untitled Product')}</strong></td>
+                    <td data-label="Technical" style="font-size:12px;color:var(--text-muted);max-width:180px">${esc((p.technical || '—').substring(0, 40))}</td>
+                    <td data-label="Category"><span class="badge badge-active">${esc(catOpt.label)}</span></td>
+                    <td data-label="Market"><span class="badge" style="background:#e3f2fd;color:#1565c0">${esc(p.market || 'domestic')}</span></td>
+                    <td data-label="Actions">
+                      <div style="display:flex;gap:6px">
+                        <button class="btn btn-edit btn-sm js-edit-product" data-id="${escAttr(p.id)}">Edit</button>
+                        <button class="btn btn-danger btn-sm js-delete-product" data-id="${escAttr(p.id)}">Delete</button>
+                        <a href="product-details.html?id=${encodeURIComponent(String(p.id))}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-green btn-sm">View</a>
+                      </div>
+                    </td>
+                  </tr>
+                `);
+              });
+            }
+        });
+
         table.innerHTML = `
           <thead><tr><th>Sr No.</th><th>Image</th><th>Product Name</th><th>Technical</th><th>Category</th><th>Market</th><th>Actions</th></tr></thead>
-          <tbody>${data.length === 0 ? '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">No data available.</td></tr>' : data.map((p, idx) => `
-            <tr>
-              <td data-label="Sr No.">
-                <input class="inline-order-input js-product-order" type="number" min="1" value="${escAttr(p.order || idx + 1)}" data-id="${escAttr(p.id)}" />
-              </td>
-              <td data-label="Image"><img class="product-table-img js-table-img" src="${escAttr(safeUrl(getProductImage(p), FALLBACK_IMAGE))}" alt="${escAttr(p.name || 'Product')}"></td>
-              <td data-label="Product Name"><strong>${esc(p.name || 'Untitled Product')}</strong></td>
-              <td data-label="Technical" style="font-size:12px;color:var(--text-muted);max-width:180px">${esc((p.technical || '—').substring(0, 40))}</td>
-              <td data-label="Category"><span class="badge badge-active">${esc(getAnyCategoryLabel(p.category || 'uncategorized'))}</span></td>
-              <td data-label="Market"><span class="badge" style="background:#e3f2fd;color:#1565c0">${esc(p.market || 'domestic')}</span></td>
-              <td data-label="Actions">
-                <div style="display:flex;gap:6px">
-                  <button class="btn btn-edit btn-sm js-edit-product" data-id="${escAttr(p.id)}">Edit</button>
-                  <button class="btn btn-danger btn-sm js-delete-product" data-id="${escAttr(p.id)}">Delete</button>
-                  <a href="product-details.html?id=${encodeURIComponent(String(p.id))}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-green btn-sm">View</a>
-                </div>
-              </td>
-            </tr>
-          `).join('')}</tbody>`;
+          <tbody>${rows.length === 0 ? '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">No data available.</td></tr>' : rows.join('')}</tbody>`;
       } catch (err) {
         console.error('renderProductsTable failed', err);
       }
@@ -560,8 +594,16 @@
 
     function normalizeDomesticProductOrders(products) {
       const domestic = products.filter(p => (p.market || 'domestic') === 'domestic');
-      domestic.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-      domestic.forEach((p, idx) => { p.order = idx + 1; });
+      const groups = {};
+      domestic.forEach(p => {
+        const cat = p.category || 'uncategorized';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(p);
+      });
+      Object.keys(groups).forEach(cat => {
+        groups[cat].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        groups[cat].forEach((p, idx) => { p.order = idx + 1; });
+      });
     }
 
     function renderTechnicalsTable() {
@@ -775,7 +817,8 @@
               products[idx] = product;
             }
         } else {
-            product.order = products.length + 1;
+            const sameCat = products.filter(p => (p.market || 'domestic') === market && p.category === cat);
+            product.order = sameCat.length + 1;
             products.unshift(product);
         }
 
