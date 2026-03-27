@@ -69,10 +69,21 @@ if (typeof window !== 'undefined') {
  */
 function shouldFetchOnLoad() {
   if (!isSyncEnabled() || !getSyncConfig().autoPull) return false;
+
+  // Detect manual refresh (F5). If reloaded, force a full pull from server.
+  const isReload = typeof window !== 'undefined' && 
+    window.performance && 
+    window.performance.getEntriesByType("navigation").map(nav => nav.type).includes("reload");
+  
+  if (isReload) {
+    console.log('Manual refresh detected: forcing full data pull.');
+    return true;
+  }
+
   // Check if cache has been invalidated by admin push
   const ts = storageGet(PULL_TS_KEY);
   if (!ts || ts === '0') return true;
-  // Always perform a lightweight check on page load / manual refresh.
+  // Otherwise, perform a lightweight check to see if version changed.
   return 'check';
 }
 
@@ -143,9 +154,15 @@ function isSyncEnabled() {
 async function syncFetch(url, options, timeoutMs) {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  
+  // Append timestamp to bypass any possible caching at browser/proxy levels
+  const sep = url.includes('?') ? '&' : '?';
+  const bustUrl = `${url}${sep}_t=${Date.now()}`;
+
   try {
-    const res = await fetch(url, {
+    const res = await fetch(bustUrl, {
       ...options,
+      cache: 'no-store',
       signal: controller ? controller.signal : undefined
     });
     const text = await res.text();
@@ -181,9 +198,9 @@ function applySyncData(data) {
   }
 
   if (Array.isArray(data.products)) {
-    if (typeof normalizeProductOrder === 'function') {
-      const normalized = normalizeProductOrder(data.products);
-      if (normalized) touched = true;
+    if (typeof normalizeOrderByCategory === 'function') {
+      normalizeOrderByCategory(data.products);
+      touched = true;
     }
     if (typeof ADMIN_PRODUCTS !== 'undefined') {
       ADMIN_PRODUCTS = data.products;
@@ -1031,10 +1048,8 @@ function normalizeProductOrder(list) {
 
 normalizeOrderByCategory(ADMIN_TECHNICALS);
 normalizeOrderByCategory(ADMIN_FORMULATIONS);
-const productsNormalized = normalizeProductOrder(ADMIN_PRODUCTS);
-if (productsNormalized) {
-  storageSet('besion_products', JSON.stringify(ADMIN_PRODUCTS));
-}
+normalizeOrderByCategory(ADMIN_PRODUCTS);
+storageSet('besion_products', JSON.stringify(ADMIN_PRODUCTS));
 
 storageSet('besion_technicals', JSON.stringify(ADMIN_TECHNICALS));
 storageSet('besion_formulations', JSON.stringify(ADMIN_FORMULATIONS));

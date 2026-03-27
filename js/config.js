@@ -17,21 +17,14 @@ const _BESION_CONFIG_SESSION_KEY = 'besion_config_session';
 
 (async function initConfig() {
   try {
-    // Check for an in-session cached copy first
+    // Fetch config.local.json on every page load to ensure freshness.
+    // vercel.json ensures this fetch is not cached by the browser/edge.
     let localConfig = null;
-    try {
-      const cached = sessionStorage.getItem(_BESION_CONFIG_SESSION_KEY);
-      if (cached) localConfig = JSON.parse(cached);
-    } catch (_) { /* ignore parse/storage errors */ }
-
-    if (!localConfig) {
-      const response = await fetch('/js/config.local.json');
-      if (response.ok) {
-        localConfig = await response.json();
-        try { sessionStorage.setItem(_BESION_CONFIG_SESSION_KEY, JSON.stringify(localConfig)); } catch (_) {}
-      } else {
-        throw new Error(`Failed to load config.local.json: ${response.status}`);
-      }
+    const response = await fetch('/js/config.local.json');
+    if (response.ok) {
+      localConfig = await response.json();
+    } else {
+      throw new Error(`Failed to load config.local.json: ${response.status}`);
     }
 
     window.BESION_SYNC_CONFIG = {
@@ -42,7 +35,7 @@ const _BESION_CONFIG_SESSION_KEY = 'besion_config_session';
       autoPull: localConfig.autoPull !== false
     };
     document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: window.BESION_SYNC_CONFIG }));
-    console.log('Configuration loaded' + (localConfig ? ' (session cache).' : '.'));
+    console.log('Configuration loaded fresh.');
   } catch (err) {
     console.warn('Could not load configuration, using defaults.', err);
     // Dispatch even on failure so UI isn't blocked forever

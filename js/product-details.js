@@ -258,14 +258,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const normalizeMarket = (value) => String(value || '').trim().toLowerCase();
   const normalizeCategory = (value) => {
     let v = String(value || '').trim().toLowerCase();
-    if (v.startsWith('domestic -')) v = v.replace(/^domestic\s*-\s*/i, '').trim();
-    if (v.startsWith('global -')) v = v.replace(/^global\s*-\s*/i, '').trim();
+    // Strip "domestic -" or "global -" or "domestic →" or "global →" prefixes
+    v = v.replace(/^(domestic|global)\s*[-→]\s*/i, '').trim();
     return v;
   };
   const isSameCategoryOrSub = (a, b) => {
     if (!a || !b) return false;
     if (a === b) return true;
-    const separators = ['>', '/', ':', '-'];
+    const separators = ['>', '/', ':', '-', '→'];
     return separators.some(sep => a.startsWith(`${b} ${sep} `) || b.startsWith(`${a} ${sep} `));
   };
 
@@ -278,8 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const sameMarket = normalizeMarket(p.market) === baseMarket;
       const sameCategory = isSameCategoryOrSub(normalizeCategory(p.category), baseCategory);
       return sameMarket && sameCategory;
-    })
-    .slice(0, 4);
+    });
   if (related.length > 0) {
     const relatedSection = document.getElementById('relatedSection');
     const relatedGrid = document.getElementById('relatedGrid');
