@@ -47,6 +47,47 @@ if (typeof window !== 'undefined') {
   window.storageSet = storageSet;
 }
 
+// ── Sync pull cache key (manual-refresh model) ────────────────────────────
+// '0' means invalidated (force-fetch on next load). Any timestamp = cached.
+const PULL_TS_KEY = 'besion_sync_last_pull';
+if (typeof window !== 'undefined') {
+  window.BESION_PULL_TS_KEY = PULL_TS_KEY;
+}
+
+/**
+ * Returns true if the current page load should trigger a GAS pull.
+ * Fetches on:
+ *   1. Hard reload (F5 / Ctrl+R) — detected via Navigation Timing API
+ *   2. First ever visit / cache invalidated (besion_sync_last_pull === '0' or missing)
+ * Does NOT fetch on:
+ *   - Regular page navigation within the site
+ *   - Back / forward navigation
+ */
+function shouldFetchOnLoad() {
+  if (!isSyncEnabled() || !getSyncConfig().autoPull) return false;
+  // Check if cache has been invalidated by admin push
+  const ts = storageGet(PULL_TS_KEY);
+  if (!ts || ts === '0') return true;
+  // Detect hard reload via Navigation Timing API (supported in all modern browsers)
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    if (nav && nav.type === 'reload') return true;
+  } catch (_) { /* ignore in environments without performance API */ }
+  return false;
+}
+
+async function initialDataFetch() {
+  if (!shouldFetchOnLoad()) return;
+  const result = await besionSyncPull().catch(() => ({}));
+  if (result && result.ok) {
+    storageSet(PULL_TS_KEY, String(Date.now()));
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.besionInitialDataFetch = initialDataFetch;
+}
+
 // ── Sync config ──────────────────────────────────────────────────────────
 function getSyncConfig() {
   if (typeof window === 'undefined') {
@@ -217,7 +258,7 @@ async function besionSyncAuth(password) {
   const cfg = getSyncConfig();
   const body = JSON.stringify({ action: 'login', password: password || '' });
   const contentType = cfg.usePlainText ? 'text/plain;charset=utf-8' : 'application/json';
-  
+
   return await syncFetch(cfg.url, {
     method: 'POST',
     headers: { 'Content-Type': contentType },
@@ -242,6 +283,8 @@ async function besionSyncPush(payload, password) {
   }, cfg.timeoutMs);
   if (res.ok && res.data && res.data.data) {
     applySyncData(res.data.data);
+    // Invalidate pull cache so next user page reload fetches fresh data
+    storageSet(PULL_TS_KEY, '0');
     return { ok: true, data: res.data.data };
   }
   if (res.ok) return { ok: false, error: 'Invalid sync response.' };
@@ -1400,9 +1443,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if (typeof window !== 'undefined' && isSyncEnabled() && getSyncConfig().autoPull) {
-    besionSyncPull().catch(() => {});
-  }
+  // Manual-refresh model: only pull from GAS on hard reload or first visit.
+  // Navigation between pages reuses localStorage cache (no network call).
+  initialDataFetch();
   setupGlobalImageFallback();
   preloadProductImages();
   setupSearch();
@@ -1431,9 +1474,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 });
 
-// Force refresh on back/forward navigation to ensure data is always fresh
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    window.location.reload();
-  }
-});
+// pageshow forced-reload removed: it was triggering extra GAS fetches on
+// every back/forward navigation. Data freshness is now managed via the
+// manual-refresh model (hard reload = fresh fetch; navigation = cached data).
