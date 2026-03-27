@@ -54,14 +54,19 @@ if (typeof window !== 'undefined') {
   window.BESION_PULL_TS_KEY = PULL_TS_KEY;
 }
 
+// Minimum age before a hard-reload is allowed to re-fetch from GAS (5 minutes).
+// This prevents habitual F5 presses from hammering the GAS endpoint.
+const PULL_MIN_AGE_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Returns true if the current page load should trigger a GAS pull.
  * Fetches on:
- *   1. Hard reload (F5 / Ctrl+R) — detected via Navigation Timing API
- *   2. First ever visit / cache invalidated (besion_sync_last_pull === '0' or missing)
+ *   1. First ever visit / cache invalidated (besion_sync_last_pull === '0' or missing)
+ *   2. Hard reload (F5 / Ctrl+R) — BUT only if data is older than PULL_MIN_AGE_MS
  * Does NOT fetch on:
  *   - Regular page navigation within the site
  *   - Back / forward navigation
+ *   - Hard reload when data was fetched less than 5 minutes ago
  */
 function shouldFetchOnLoad() {
   if (!isSyncEnabled() || !getSyncConfig().autoPull) return false;
@@ -71,7 +76,11 @@ function shouldFetchOnLoad() {
   // Detect hard reload via Navigation Timing API (supported in all modern browsers)
   try {
     const nav = performance.getEntriesByType('navigation')[0];
-    if (nav && nav.type === 'reload') return true;
+    if (nav && nav.type === 'reload') {
+      // Only re-fetch if data is older than the minimum age window
+      const age = Date.now() - parseInt(ts, 10);
+      return age > PULL_MIN_AGE_MS;
+    }
   } catch (_) { /* ignore in environments without performance API */ }
   return false;
 }

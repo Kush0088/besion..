@@ -74,8 +74,15 @@ function handleRequest_(e) {
   // Public Actions
   if (action === 'pull') {
     try {
-      const data = readAll_();
-      return json_({ ok: true, data: data });
+      // Optional: client may request only specific sheets to reduce transfer size.
+      // e.g. { action: 'pull', sheets: ['settings'] } for homepage
+      const requestedSheets = Array.isArray(body.sheets || params.sheets)
+        ? (body.sheets || params.sheets).map(s => String(s).toLowerCase())
+        : null; // null = return all sheets
+
+      const data = readScoped_(requestedSheets);
+      const version = hashData_(data);
+      return jsonWithVersion_({ ok: true, data: data }, version);
     } catch (err) {
       return json_({ ok: false, error: String(err && err.message ? err.message : err) });
     }
@@ -116,6 +123,30 @@ function safeJson_(text) {
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Like json_() but adds Cache-Control headers for pull responses.
+ * GAS ContentService does not support arbitrary response headers directly;
+ * however including cache metadata in the response body lets the client
+ * implement ETag-style version checking to skip unnecessary re-renders.
+ */
+function jsonWithVersion_(obj, version) {
+  return ContentService
+    .createTextOutput(JSON.stringify({ ...obj, _v: version }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Simple non-cryptographic hash for generating a version fingerprint.
+ */
+function hashData_(data) {
+  const str = JSON.stringify(data);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+  }
+  return Math.abs(hash).toString(36);
 }
 
 function getSpreadsheet_() {
