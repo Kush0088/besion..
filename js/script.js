@@ -54,8 +54,6 @@ if (typeof window !== 'undefined') {
   window.BESION_PULL_TS_KEY = PULL_TS_KEY;
 }
 
-const PULL_MIN_AGE_MS = 5 * 60 * 1000; // 5 minutes
-
 const VERSION_KEY = 'besion_last_version';
 if (typeof window !== 'undefined') {
   window.BESION_VERSION_KEY = VERSION_KEY;
@@ -65,29 +63,17 @@ if (typeof window !== 'undefined') {
  * Returns true if the current page load should trigger a GAS pull.
  * Fetches on:
  *   1. First ever visit / cache invalidated (besion_sync_last_pull === '0' or missing)
- *   2. Hard reload (F5 / Ctrl+R) — BUT only if data is older than PULL_MIN_AGE_MS
+ *   2. Version mismatch detected via lightweight check
  * Does NOT fetch on:
- *   - Regular page navigation within the site
- *   - Back / forward navigation
- *   - Hard reload when data was fetched less than 5 minutes ago
+ *   - Version matches (only lightweight check is performed)
  */
 function shouldFetchOnLoad() {
   if (!isSyncEnabled() || !getSyncConfig().autoPull) return false;
   // Check if cache has been invalidated by admin push
   const ts = storageGet(PULL_TS_KEY);
   if (!ts || ts === '0') return true;
-  // Detect hard reload via Navigation Timing API
-  try {
-    const nav = performance.getEntriesByType('navigation')[0];
-    if (nav && nav.type === 'reload') {
-      const age = Date.now() - parseInt(ts, 10);
-      // Older than 5 mins? Full pull.
-      if (age > PULL_MIN_AGE_MS) return true;
-      // Fresh but reloaded? Perform lightweight version check.
-      return 'check';
-    }
-  } catch (_) { /* ignore */ }
-  return false;
+  // Always perform a lightweight check on page load / manual refresh.
+  return 'check';
 }
 
 async function initialDataFetch() {
@@ -101,7 +87,8 @@ async function initialDataFetch() {
       // Version matches, skip pull
       return;
     }
-    // Version differs or check failed, proceed to full pull
+    // Version differs; proceed to full pull.
+    if (!versionRes.ok) return;
   }
 
   const result = await besionSyncPull().catch(() => ({}));
@@ -1497,8 +1484,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Manual-refresh model: only pull from GAS on hard reload or first visit.
-  // Navigation between pages reuses localStorage cache (no network call).
+  // Fast-first render from cache, then lightweight version check on load.
+  // Full pull happens only when server version differs (or cache is invalidated).
   initialDataFetch();
   setupGlobalImageFallback();
   preloadProductImages();
@@ -1529,5 +1516,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // pageshow forced-reload removed: it was triggering extra GAS fetches on
-// every back/forward navigation. Data freshness is now managed via the
-// manual-refresh model (hard reload = fresh fetch; navigation = cached data).
+// every back/forward navigation. Data freshness is now managed via a
+// lightweight version check on load, with full pulls only on changes.

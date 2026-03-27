@@ -255,13 +255,29 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
   `;
 
-  // Related products: same market + same category only
+  const normalizeMarket = (value) => String(value || '').trim().toLowerCase();
+  const normalizeCategory = (value) => {
+    let v = String(value || '').trim().toLowerCase();
+    if (v.startsWith('domestic -')) v = v.replace(/^domestic\s*-\s*/i, '').trim();
+    if (v.startsWith('global -')) v = v.replace(/^global\s*-\s*/i, '').trim();
+    return v;
+  };
+  const isSameCategoryOrSub = (a, b) => {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    const separators = ['>', '/', ':', '-'];
+    return separators.some(sep => a.startsWith(`${b} ${sep} `) || b.startsWith(`${a} ${sep} `));
+  };
+
+  // Related products: strict same market + same category/subcategory only
+  const baseMarket = normalizeMarket(product.market);
+  const baseCategory = normalizeCategory(product.category);
   const related = products
     .filter(p => {
       if (p.id === product.id) return false;
-      const sameCategory = p.category === product.category;
-      const sameMarket = product.market ? p.market === product.market : true;
-      return sameCategory && sameMarket;
+      const sameMarket = normalizeMarket(p.market) === baseMarket;
+      const sameCategory = isSameCategoryOrSub(normalizeCategory(p.category), baseCategory);
+      return sameMarket && sameCategory;
     })
     .slice(0, 4);
   if (related.length > 0) {

@@ -495,6 +495,10 @@
         const srch = (document.getElementById('productSearch')?.value || '').toLowerCase();
 
         const products = Array.isArray(window.ADMIN_PRODUCTS) ? window.ADMIN_PRODUCTS : [];
+        const normalized = normalizeDomesticProductOrders(products);
+        if (normalized) {
+          window.storageSet('besion_products', JSON.stringify(products));
+        }
         const technicals = Array.isArray(window.ADMIN_TECHNICALS) ? window.ADMIN_TECHNICALS : [];
         const formulations = Array.isArray(window.ADMIN_FORMULATIONS) ? window.ADMIN_FORMULATIONS : [];
 
@@ -595,6 +599,7 @@
     function normalizeDomesticProductOrders(products) {
       const domestic = products.filter(p => (p.market || 'domestic') === 'domestic');
       const groups = {};
+      let changed = false;
       domestic.forEach(p => {
         const cat = p.category || 'uncategorized';
         if (!groups[cat]) groups[cat] = [];
@@ -602,8 +607,15 @@
       });
       Object.keys(groups).forEach(cat => {
         groups[cat].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        groups[cat].forEach((p, idx) => { p.order = idx + 1; });
+        groups[cat].forEach((p, idx) => {
+          const nextOrder = idx + 1;
+          if (p.order !== nextOrder) {
+            p.order = nextOrder;
+            changed = true;
+          }
+        });
       });
+      return changed;
     }
 
     function renderTechnicalsTable() {
