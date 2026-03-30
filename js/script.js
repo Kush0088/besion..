@@ -186,10 +186,7 @@ async function syncFetch(url, options, timeoutMs) {
       ...options,
       cache: isReload ? 'no-cache' : 'no-store',
       headers: {
-        ...options.headers,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+        ...options.headers
       },
       signal: controller ? controller.signal : undefined
     });
