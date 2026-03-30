@@ -59,6 +59,10 @@ if (typeof window !== 'undefined') {
   window.BESION_VERSION_KEY = VERSION_KEY;
 }
 
+// ── Sync check cooldown (to reduce edge requests) ───────────────────────
+const SYNC_CHECK_KEY = 'besion_last_check_ts';
+const SYNC_CHECK_COOLDOWN = 10 * 60 * 1000; // 10 minutes
+
 /**
  * Returns true if the current page load should trigger a GAS pull.
  * Fetches on:
@@ -70,20 +74,28 @@ if (typeof window !== 'undefined') {
 function shouldFetchOnLoad() {
   if (!isSyncEnabled() || !getSyncConfig().autoPull) return false;
 
-  // Detect manual refresh (F5). If reloaded, force a full pull from server.
+  // Detect manual refresh (F5 or Enter in URL bar if reported as reload)
   const isReload = typeof window !== 'undefined' && 
-    window.performance && 
-    window.performance.getEntriesByType("navigation").map(nav => nav.type).includes("reload");
+    (window.performance?.navigation?.type === 1 ||
+     window.performance?.getEntriesByType("navigation").map(nav => nav.type).includes("reload"));
   
   if (isReload) {
     console.log('Manual refresh detected: forcing full data pull.');
     return true;
   }
 
-  // Check if cache has been invalidated by admin push
+  // Check if cache has been invalidated by a recent admin push
   const ts = storageGet(PULL_TS_KEY);
   if (!ts || ts === '0') return true;
-  // Otherwise, perform a lightweight check to see if version changed.
+
+  // Check cooldown to avoid redundant version checks (Edge Requests)
+  const lastCheck = parseInt(sessionStorage.getItem(SYNC_CHECK_KEY) || '0', 10);
+  const now = Date.now();
+  if (now - lastCheck < SYNC_CHECK_COOLDOWN) {
+    return false; // Within cooldown, data is "fresh enough"
+  }
+
+  // Cooldown expired; perform a lightweight check to see if version changed.
   return 'check';
 }
 
@@ -93,18 +105,24 @@ async function initialDataFetch() {
 
   if (mode === 'check') {
     const versionRes = await besionSyncCheck().catch(() => ({ ok: false }));
+    
+    // Record that we performed a check (regardless of success, to prevent infinite loops)
+    sessionStorage.setItem(SYNC_CHECK_KEY, String(Date.now()));
+
     const localVersion = storageGet(VERSION_KEY);
     if (versionRes.ok && versionRes.version === localVersion) {
       // Version matches, skip pull
       return;
     }
-    // Version differs; proceed to full pull.
+    // Version differs; proceed to full pull if check was successful.
     if (!versionRes.ok) return;
   }
 
   const result = await besionSyncPull().catch(() => ({}));
   if (result && result.ok) {
     storageSet(PULL_TS_KEY, String(Date.now()));
+    // Also reset check timestamp on successful pull
+    sessionStorage.setItem(SYNC_CHECK_KEY, String(Date.now()));
   }
 }
 
@@ -160,9 +178,19 @@ async function syncFetch(url, options, timeoutMs) {
   const bustUrl = `${url}${sep}_t=${Date.now()}`;
 
   try {
+    const isReload = typeof window !== 'undefined' && 
+      (window.performance?.navigation?.type === 1 ||
+       window.performance?.getEntriesByType("navigation").map(nav => nav.type).includes("reload"));
+
     const res = await fetch(bustUrl, {
       ...options,
-      cache: 'no-store',
+      cache: isReload ? 'no-cache' : 'no-store',
+      headers: {
+        ...options.headers,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
       signal: controller ? controller.signal : undefined
     });
     const text = await res.text();
