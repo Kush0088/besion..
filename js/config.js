@@ -28,7 +28,6 @@ const _BESION_CONFIG_SESSION_KEY = 'besion_config_session';
       const cached = JSON.parse(sessionCached);
       window.BESION_SYNC_CONFIG = { ...window.BESION_SYNC_CONFIG, ...cached };
       document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: window.BESION_SYNC_CONFIG }));
-      console.log('Configuration loaded from session.');
       return;
     }
 
@@ -50,7 +49,6 @@ const _BESION_CONFIG_SESSION_KEY = 'besion_config_session';
       autoPull: localConfig.autoPull !== false
     };
     document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: window.BESION_SYNC_CONFIG }));
-    console.log('Configuration loaded fresh.');
   } catch (err) {
     console.warn('Could not load configuration, using defaults.', err);
     document.dispatchEvent(new CustomEvent('besion:config-ready', { detail: window.BESION_SYNC_CONFIG }));

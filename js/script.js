@@ -80,7 +80,6 @@ function shouldFetchOnLoad() {
      window.performance?.getEntriesByType("navigation").map(nav => nav.type).includes("reload"));
   
   if (isReload) {
-    console.log('Manual refresh detected: forcing full data pull.');
     return true;
   }
 
@@ -690,12 +689,14 @@ function preloadProductImages() {
   const priority = new Set();
   const normalizeUrl = (raw) => {
     const url = resolveImageUrl(raw || '').trim();
-    if (!url) return;
+    // Skip Drive/external URLs — they can't be preloaded cross-origin (CORB)
+    if (!url || isDriveUrl(url)) return;
     sources.add(appendVersion(url, version));
   };
   const pushPriority = (raw) => {
     const url = resolveImageUrl(raw || '').trim();
-    if (!url) return;
+    // Skip Drive/external URLs — they can't be preloaded cross-origin (CORB)
+    if (!url || isDriveUrl(url)) return;
     const withVersion = appendVersion(url, version);
     sources.add(withVersion);
     priority.add(withVersion);
