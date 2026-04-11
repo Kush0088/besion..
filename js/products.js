@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `).join('');
 
     formGrid.innerHTML = forms.length === 0
-      ? '<div class="empty-state" style="grid-column:1/-1"><p>No formulations found in this category.</p></div>'
+      ? '<div class="empty-state" style="grid-column:1/-1"><p>Currently no formulations are available in this category.</p></div>'
       : forms.map(f => `
         <div class="formulation-item" data-id="${escAttr(f.id || '')}">
           <div class="global-item-row">
