@@ -255,12 +255,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initial render
+  document.addEventListener('besion-sync:updated', renderProductInfo);
   renderProductInfo();
-
-  // Listen for background updates
-  document.addEventListener('besion-sync:updated', () => {
-    console.log('Live update detected, re-rendering product details...');
-    renderProductInfo();
-  });
 });

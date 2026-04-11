@@ -3,11 +3,15 @@
    ============================================= */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const waLink = getWhatsAppLink();
-  const waFloat = document.querySelector('.whatsapp-float');
-  if (waFloat) waFloat.href = waLink;
-  const waChannel = document.querySelector('.contact-channel[href*="wa.me/"]');
-  if (waChannel) waChannel.href = waLink;
+  const applyContactLinks = () => {
+    const waLink = getWhatsAppLink();
+    const waFloat = document.querySelector('.whatsapp-float');
+    if (waFloat) waFloat.href = waLink;
+    const waChannel = document.querySelector('.contact-channel[href*="wa.me/"]');
+    if (waChannel) waChannel.href = waLink;
+  };
+  applyContactLinks();
+  document.addEventListener('besion-sync:updated', applyContactLinks);
 
   const msgInput = document.getElementById('ctMessage');
   const wordCount = document.getElementById('wordCount');
