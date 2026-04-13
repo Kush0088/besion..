@@ -75,7 +75,14 @@ function submitContactForm() {
   const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   const mailtoUrl = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-  // Use an <a> click to avoid popup blockers (Brave, Firefox strict mode, etc.)
+  // Mobile view redirect directly to Gmail app via mailto
+  if (window.innerWidth <= 768) {
+    showToast('Opening Gmail app...', 'success');
+    window.location.href = mailtoUrl;
+    return;
+  }
+
+  // Desktop flow: try web composer, fallback to mailto
   showToast('Opening your email client...', 'success');
   const link = document.createElement('a');
   link.href = gmailUrl;
