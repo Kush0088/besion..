@@ -7,7 +7,7 @@ const BESION_SYNC = {
   // Optional: set Spreadsheet ID; leave blank to use the bound sheet
   SHEET_ID: '',
   // Password required for push/sync/login (acts as the only auth token)
-  ADMIN_PASSWORD: 'Kush', // MUST be set to the desired admin password
+  ADMIN_PASSWORD: 'besoinpvtltd', // MUST be set to the desired admin password
 
   SHEETS: {
     products: {

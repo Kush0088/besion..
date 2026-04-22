@@ -6,7 +6,7 @@
 // Initial default configuration
 window.BESION_SYNC_CONFIG = {
   url: '',
-  syncPassword: 'final',
+  syncPassword: 'confirm',
   adminEnabled: true,
   autoPull: true
 };
@@ -44,7 +44,7 @@ const _BESION_CONFIG_SESSION_KEY = 'besion_config_session';
     window.BESION_SYNC_CONFIG = {
       ...window.BESION_SYNC_CONFIG,
       url: localConfig.url || window.BESION_SYNC_CONFIG.url,
-      syncPassword: localConfig.syncPassword || 'final',
+      syncPassword: localConfig.syncPassword || 'confirm',
       adminEnabled: localConfig.adminEnabled !== false,
       autoPull: localConfig.autoPull !== false
     };
