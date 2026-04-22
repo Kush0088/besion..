@@ -91,8 +91,8 @@
     const ADMIN_UNLOCK_KEY = 'besion_admin_unlock_v1';
     const ADMIN_ATTEMPTS_KEY = 'besion_admin_attempts_v1';
     const ADMIN_LOCK_UNTIL_KEY = 'besion_admin_lock_until_v1';
-    const MAX_ADMIN_ATTEMPTS = 5;
-    const ADMIN_ATTEMPT_WINDOW_MS = 60 * 60 * 1000;
+    const MAX_ADMIN_ATTEMPTS = 999;
+    const ADMIN_ATTEMPT_WINDOW_MS = 0;
 
     // --- Admin Access Logic ---
 
@@ -1071,11 +1071,13 @@
             const entered = passInput?.value?.trim();
             const now = Date.now();
             
+            /*
             const lockUntil = getAdminLockUntil();
             if (lockUntil && lockUntil > now) {
                 showAdminLockError(`Too many attempts. Try again in ${formatLockDuration(lockUntil - now)}.`);
                 return;
             }
+            */
 
             if (!entered) return;
             

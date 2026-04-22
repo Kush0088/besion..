@@ -569,7 +569,7 @@ function resolveImageUrl(raw) {
   if (!isDriveUrl(value)) return value;
   const id = extractDriveId(value);
   if (!id) return value;
-  return `https://drive.google.com/uc?export=view&id=${id}`;
+  return `https://lh3.googleusercontent.com/d/${id}`;
 }
 
 function getDriveImageCandidates(raw) {
